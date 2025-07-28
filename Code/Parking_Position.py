@@ -3,8 +3,8 @@ import cv2
 import pickle
 
 # Defining Image Path and File Path
-img_path=".\Image And Videos\\Car Parking.png"
-file_path=".\Parking Position"
+img_path="../Image And Videos/Car Parking.png"
+file_path="../Parking Position"
 
 width,height=(250-205),(168-150)
 

@@ -4,8 +4,8 @@ import cv2
 import pickle
 
 # Paths
-video_path=".\Image And Videos\\Car Parking.mp4"
-file_path=".\Parking Position"
+video_path="../Image And Videos/Car Parking.mp4"
+file_path="../Parking Position"
 
 # Reading Video
 vid = cv2.VideoCapture(video_path)
