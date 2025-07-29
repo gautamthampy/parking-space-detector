@@ -6,6 +6,24 @@ import random
 import time
 import torch
 
+def visualize_processing_steps(gray_frame, blur_frame, adaptive_thresh, median_thresh, 
+                             prob_map_combined, enhanced_combined, final_combined, 
+                             binary_map, dilated_image, show_debug=False):
+    """
+    Utility function to visualize intermediate processing steps.
+    Set show_debug=True to display all intermediate images for debugging.
+    """
+    if show_debug:
+        cv2.imshow("1. Gray Frame", gray_frame)
+        cv2.imshow("2. Gaussian Blurred", blur_frame)
+        cv2.imshow("3. Adaptive Threshold", adaptive_thresh)
+        cv2.imshow("4. Median Filtered", median_thresh)
+        cv2.imshow("5. Probability Map Combined", prob_map_combined)
+        cv2.imshow("6. Enhanced Combined", enhanced_combined)
+        cv2.imshow("7. Final Combined", final_combined)
+        cv2.imshow("8. Binary Map", binary_map)
+        cv2.imshow("9. Final Dilated", dilated_image)
+
 def get_contour_center(contour):
     M = cv2.moments(contour)
     if M["m00"] != 0:
@@ -81,7 +99,7 @@ def process_frame(
     frame, vehicle_mask, prob_map_path,
     thresholds, upper_level_l, upper_level_m, upper_level_r,
     close_perp, far_side, close_side, far_perp, small_park,
-    ignore_regions
+    ignore_regions, show_debug=False
 ):
     # 1) Load probability map
     prob_map = cv2.imread(prob_map_path, cv2.IMREAD_GRAYSCALE)
@@ -92,21 +110,59 @@ def process_frame(
     if prob_map.shape != frame.shape[:2]:
         prob_map = cv2.resize(prob_map, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
 
-    # 2) Invert vehicle mask
+    # 2) Enhanced image preprocessing with Gaussian blur and adaptive thresholding
+    # Convert frame to grayscale for additional processing
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    
+    # Apply Gaussian blur to reduce noise and improve edge detection
+    blur_frame = cv2.GaussianBlur(gray_frame, ksize=(3, 3), sigmaX=1)
+    
+    # Apply adaptive thresholding for better edge detection
+    adaptive_thresh = cv2.adaptiveThreshold(
+        blur_frame,
+        maxValue=255,
+        adaptiveMethod=cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        thresholdType=cv2.THRESH_BINARY_INV,
+        blockSize=25,
+        C=16
+    )
+    
+    # Apply median blur to further reduce noise
+    median_thresh = cv2.medianBlur(adaptive_thresh, ksize=5)
+    
+    # 3) Invert vehicle mask
     vehicle_mask_scaled = (vehicle_mask * 255).astype(np.uint8)
     mask_img_inv = cv2.bitwise_not(vehicle_mask_scaled)
 
-    # 3) Combine with probability map
+    # 4) Combine probability map with enhanced frame processing
     prob_map_combined = cv2.bitwise_and(prob_map, prob_map, mask=mask_img_inv)
+    
+    # Combine adaptive thresholding results with probability map for enhanced detection
+    enhanced_combined = cv2.bitwise_and(median_thresh, median_thresh, mask=mask_img_inv)
+    
+    # Merge both approaches: probability map + adaptive thresholding
+    final_combined = cv2.addWeighted(prob_map_combined, 0.6, enhanced_combined, 0.4, 0)
 
-    # 4) Binarize & morphological ops
-    _, binary_map = cv2.threshold(prob_map_combined, 50, 255, cv2.THRESH_BINARY)
+    # 5) Binarize & morphological ops on the enhanced combined image
+    _, binary_map = cv2.threshold(final_combined, 50, 255, cv2.THRESH_BINARY)
+    
+    # Additional morphological operations for better contour detection
     kernel_size = 5
     kernel = np.ones((kernel_size, kernel_size), np.uint8)
     eroded_image = cv2.erode(binary_map, kernel, iterations=6)
+    
+    # Apply dilation to recover some lost details (similar to Code/main.py)
+    dilated_image = cv2.dilate(eroded_image, kernel, iterations=1)
 
-    # 5) Find potential contours
-    contours, _ = cv2.findContours(eroded_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Optional: Visualize intermediate processing steps for debugging
+    visualize_processing_steps(
+        gray_frame, blur_frame, adaptive_thresh, median_thresh,
+        prob_map_combined, enhanced_combined, final_combined,
+        binary_map, dilated_image, show_debug
+    )
+
+    # 6) Find potential contours
+    contours, _ = cv2.findContours(dilated_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     final_contours_info = []
     for contour in contours:

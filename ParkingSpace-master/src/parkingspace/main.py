@@ -90,7 +90,8 @@ def main():
                 close_side, 
                 far_perp, 
                 small_park,
-                ignore_regions
+                ignore_regions,
+                show_debug=False  # Set to True to see intermediate processing steps
             )
 
             # Overlay bounding boxes onto original
