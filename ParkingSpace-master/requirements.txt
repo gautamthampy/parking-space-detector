@@ -1,0 +1,13 @@
+# ParkingSpace Detection System Requirements
+# Install with: pip install -r requirements.txt
+
+# Core computer vision and ML libraries
+opencv-python>=4.8.0
+numpy>=1.24.0
+ultralytics>=8.0.0
+torch>=1.13.0
+
+# Development and testing
+pytest>=7.0.0
+
+# Note: For GPU acceleration, use requirements-gpu.txt instead
